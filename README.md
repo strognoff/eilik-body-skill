@@ -1,6 +1,7 @@
 # Eilik Body Skill
 
 Codex/OpenClaw skill for using Jeff's local Eilik robot as Nova's expressive body.
+This has nothing to do with Energize Lab. There is no official support.
 
 This repository is documentation plus the installable skill folder:
 
