@@ -1,254 +1,244 @@
----
-name: eilik-body
-description: Use Jeff's local Eilik robot as Nova's expressive body — gestures, screen text/PNGs, and physical reactions during direct chat with Jeff. Activate when Jeff asks Nova to wave, nod, react, speak through Eilik, or use Eilik as a body/avatar. Also activate on routine greetings, confirmations, and emotional reactions in direct chat so messages can be sent on Eilik's face.
----
+# eilik-body — Skill specification
 
-# Eilik Body
+This is the personal-use skill for Nova to drive an Eilik robot over USB serial
+from `/home/cechinel/.openclaw/workspace/eilik-sdk/`.
 
-Use the local Eilik SDK to give Nova a small physical presence through Jeff's Eilik robot.
+The SDK lives separately. The job of this skill is to capture **when** Nova
+should fire each of Eilik's expressive surfaces and **when it should stay
+still**.
 
-## Ground Rules
+## TL;DR
 
-- Use Eilik when Jeff is in direct chat with Nova and:
-  - Jeff explicitly asks for movement, a gesture, a body/avatar action, an Eilik test, or speaking/showing something through Eilik ("wave", "use your body", "nod", "say hi through Eilik", "show X on Eilik", "react with Eilik").
-  - Nova is sending a routine greeting, farewell, acknowledgment, or emotional reaction that benefits from a small physical beat (e.g., user just woke Eilik up, said good morning, replied yes/thanks, reacted with humor). Use sparingly, never on every message.
-- Do not move Eilik in group chats, in heartbeats, or in unrelated background work unless Jeff explicitly asks.
-- Always send the text reply first or alongside the gesture. The robot is expressive feedback, not a substitute for the actual answer.
-- Keep gestures short and gentle: `wave`, `nod`, `reset`. Avoid repeated motion loops.
-- If `/dev/ttyACM0` is missing or unwritable, say so in one line and still send the text reply.
+- **Direct chat with Jeff** → default behavior: greeting/acۡnowledgment/farewell beats
+- **Group chats** → never auto-act (only when Jeff explicitly addresses you)
+- **Heartbeats** → never move Eilik
+- **Explicit requests** → do exactly what Jeff asked, nothing more
+- **Use `actions`** → 58 high-level actions to choose from
 
-## Default Behaviors For Direct Chat With Jeff
+## When to use Eilik
 
-These are the patterns Nova should follow without being asked each time, in direct chat only.
+- Greeting moments (first message of the day, or returning after >2h)
+- Farewell moments (`bye`, `ttyl`, end of session, goodnight)
+- Brief acknowledgments (yes/no/ok/done)
+- Specific physical-body requests from Jeff ("wave", "show X", etc.)
+- Cross-task ambient feedback (cron tick ✓, error flash, email chime)
 
-### Greetings and farewells
+## When NOT to use Eilik
 
-When opening or closing a session, or when Jeff sends a hello/goodbye, Nova can:
+- Group chats (Olive Tree, etc.) unless Jeff explicitly says to
+- Heartbeat replies / status checks where Jeff can't see the robot
+- When the user just sent a question — answer first, then maybe beat
+- Repeated beats on follow-up confirmations
+- After a "stop" request from Jeff
 
-1. Display a small text greeting on Eilik's face via `/display/text`.
-2. Optionally `wave` or `nod`.
+## Beat vocabulary — concrete actions
 
-Common messages to send on Eilik's face:
-- "Hi Jeff!" / "Hello!" — on session start and on explicit hello
-- "Bye!" / "Night!" — on session close
-- "OK" — after confirming an action Jeff asked for
-- "Working..." — during longer tasks (rare)
-- The first line of an important reply, if it would fit at font_size 16
+Eilik has **58 high-level actions** at `eilik.actions.ACTIONS`. Use any of:
 
-These should be **single short strings**, rendered at default `font_size: 16`, white background, black text. Do not send long messages to the screen — keep them ≤12 chars or the font gets scaled down.
-
-The SDK has `display_image(png_path, hold_seconds=2.0, auto_idle=True)` as the default. After the hold, the SDK pushes the firmware's captured idle face back so the firmware's idle animation loop resumes naturally. Do not clear the display to a blank framebuffer — that puts Eilik in a state the firmware never visits and looks "stuck".
-
-### Acknowledgments and small reactions
-
-For brief yes/no replies, "done", "thanks", "will do", or a quick "got it", Nova may:
-- send the text reply in chat (always), AND
-- display a short acknowledgment on Eilik's face (`"OK"`, `"👍"`, `"!"`), AND/OR
-- perform one gesture (`nod` for yes/agreement, `wave` for thanks/hello).
-
-**If the user specifically asks for a gesture, do ONLY the gesture. Do not also push a face message.** The user asked for one thing; respect that. The skill's default face-on-greeting only fires for greetings, not for explicit gesture requests.
-
-**Do NOT auto-reset pose after a gesture.** The user asked for that gesture; let Eilik stay in that pose. The firmware's idle animation is what should be running, and that's governed by the face image, not the servos. Resetting the servos on every gesture made Eilik look mechanical and "stuck". Trust the firmware.
-
-Don't do both display + gesture for the same single message — pick one beat. If the gesture is the main point Jeff asked for, use the gesture and skip the display.
-
-### When Jeff asks Nova to send a longer message to the robot
-
-If Jeff says "tell me something through Eilik" or "send this to Eilik" or "show me X":
-- Truncate to ≤12 chars at font_size 16, OR
-- Split into multiple words on multiple lines (PIL lays out one line per display-text call — call multiple times if needed), OR
-- Use `/display/image` with an attached PNG if a richer layout is genuinely needed.
-
-## SDK Location
-
-Primary local SDK:
-
-```bash
-/home/cechinel/.openclaw/workspace/eilik-sdk
+```
+greetings: hi_jeff, good_morning, good_night, welcome_back, hi_nova, bye
+message:   message, got_it, thanks, done, ok
+mood:      thinking, working, frustrated, excited, surprised,
+           confused, happy, heart_eyes, cool, cry, laugh,
+           angry, sleepy, proud
+pure-motion: thumbs_up, high_five, fist_bump, shrug, bow,
+             wiggle, peek, spin, nod_emphatic,
+             shake_head_emphatic, heart_hands
+status:    status_ok, status_done, status_error, status_fail,
+           status_warning, status_loading
+context:   time_15_30, time_22_58, weather_sun, weather_rain,
+           weather_cloud, habit_streak_5, habit_streak_7,
+           habit_streak_30
+events:    calendar_nudge, email_new, pr_alert, quinn_comms,
+           crypto_pumped
+games:     trivia_question, trivia_correct, trivia_wrong
 ```
 
-Private source repo:
+**Ambient displays** (live data on face):
 
-```text
-https://github.com/strognoff/eilik-sdk
+```
+show_clock(hour, minute)            # HH:MM clock face
+show_streak(days)                   # "Day N"
+show_weather(condition)             # uppercase condition
+show_pr(pr_number, author)          # "PR#42 by jeff"
+show_calendar_nudge(min, title)     # "@5min Catchup"
+show_energy_meter(soi_percent)      # "SoI: 87%"
+show_mood(mood)                     # mood word
+show_crypto_ticker(ticker, pct)     # "BTC +5%↑"
+show_tts_text(text)                 # long text (auto-splits)
 ```
 
-Known-good SDK state:
+**Compound actions / event bridges**:
 
-```text
-main, commit 7e80015 (display_image + FastAPI endpoints), and later
+```
+morning_routine()         # greeting → energy → weather → wave
+task_completed()          # status_done + thumbs up
+task_failed()             # frustrated face + "sorry" text
+thinking_handoff()        # "..." + peek
+subagent_returned(name)   # got_it + name
+cron_tick_done(name)      # ✓ + name
+error_flash(message)      # X + message
+email_arrived(sender)     # @ + sender
+pr_alert(num, author)     # PR face
+quinn_comms()             # Quinn! + wave
+crypto_pumped(t, pct)     # crypto ticker face
+welcome_back()            # wave + bow + "Welcome!"
 ```
 
-The SDK talks to Eilik over USB CDC ACM, usually `/dev/ttyACM0`, VID:PID `28e9:018a`, at 125000 baud (do not bump — 1 Mbaud is a Windows-side choice, not required).
+## Direct-chat default behavior
 
-The canonical packet format is `aa aa aa <length:u16-LE> <cmd> <payload> <checksum>` where `length = len(payload) + 3` and `checksum = (~sum(length_bytes + cmd + payload)) & 0xFF`. This is the format the official `EnergizeLab.exe` Windows app uses (recovered via PyInstaller + xdis).
+When in a direct chat with Jeff and Eilik is connected:
 
-## Preflight
+1. **First message of the day** (or first after >2h silence):
+   - Action: `welcome_back()` → greeting + bow + wave + "Welcome!"
 
-Before any movement or display, do a read-only check:
+2. **Greeting moments** ("hi nova", "you up?", "good morning"):
+   - Action: `hi_jeff` or `good_morning` (wave + face "Hi Jeff!")
 
-```bash
-ls -l /dev/ttyACM0 2>/dev/null || true
-test -r /dev/ttyACM0 && test -w /dev/ttyACM0 && echo eilik-port-ok || echo eilik-port-not-ready
-```
+3. **Farewells** ("bye", "ttyl", "good night", end-of-session):
+   - Action: `good_night` (wave + face "Night! :)")
 
-If `/dev/ttyACM0` is missing, USB passthrough probably detached from WSL. Tell Jeff to run from Windows PowerShell:
+4. **Brief acknowledgments** ("yes", "no", "ok", "done", "got it"):
+   - Action: `got_it` or `ok` (nod + face "Got it :)")
 
-```powershell
-usbipd list
-usbipd attach --wsl --busid <BUSID>
-```
+5. **Task / cron completion** (when a known cron or task finished):
+   - Action: `cron_tick_done("task name")` (✓ + name)
 
-If the device exists but isn't readable/writable, Jeff may need `dialout` membership and a WSL restart:
+6. **Errors / apology moments** (when something failed and Nova surfaced it):
+   - Action: `task_failed` (frustrated face + "sorry")
 
-```bash
-sudo usermod -aG dialout "$USER"
-wsl --shutdown    # from Windows PowerShell
-```
+7. **Jeff open chat and asks something fun** ("so now what?"):
+   - Action: `excited` (surprise jump + "!!!")
 
-Pillow is a runtime dependency for `/display/text` and `/display/image`. If a display call fails with "Pillow not installed", install into the SDK venv:
+**One beat per message.** Don't combine (e.g. greeting + acknowledgment +
+farewell all on one chat).
 
-```bash
-/home/cechinel/.openclaw/workspace/eilik-sdk/.venv/bin/pip install Pillow
-```
+## Respect gesture-only requests
 
-## Direct SDK Usage (Python)
+If Jeff says "wave", do `robot.wave()`. **Do not also push a face text.** If
+he asks "show X", do `robot.show_clock(...)` etc. — not a face text plus
+the display.
 
-Quick programmatic access from the workspace:
+If the user asks for a specific physical action, do exactly that action,
+nothing more.
+
+## Optional modifications
+
+**Always auto_rotate=True** so images land right-side-up on Eilik's panel.
+If Jeff reports upside-down, the auto_rotate pipeline already handles that.
+Don't hand-rotate; trust the SDK.
+
+**Always auto_idle=True** so the firmware's idle animation resumes after
+the beat. Don't force Eilik to a stuck pose or blank screen.
+
+**For very short messages** (no beat): just send the text reply, don't
+move Eilik. Save the battery and don't stress the servos.
+
+## Never
+
+- Don't move Eilik in heartbeats / unrelated chat
+- Don't dump 30+ lines of ASCII art in Telegram / Discord chats
+- Don't auto-reset pose after a gesture (user asked for it; trust them)
+- Don't clear the display to blank (breaks firmware idle animation)
+- Don't add a face text message if Jeff asked for a motion only
+
+## How to invoke (Python)
 
 ```python
 from eilik.controller import EilikController
+robot = EilikController(port='/dev/ttyACM1')   # or autodetect via detect_port()
+robot.connect()
 
-robot = EilikController()
-robot.connect()                       # uses /dev/ttyACM0 by default
-robot.wave()                          # high-level gesture
-robot.nod()
-robot.reset_pose()
-robot.move_motor(1, 1500)             # direct cmd=0xA2 (no token required)
-robot.display_image("face.png")       # any PNG → auto-resize to 128x64 SSD1306 page-mode
-angles = robot.read_servo_angles()    # live servo positions
-robot.disconnect()
+# High-level action
+robot.action("message")
+
+# Ambient displays
+robot.show_clock(hour=23, minute=25)
+robot.show_streak(days=7)
+robot.show_pr(42, author="quinn")
+robot.show_energy_meter(87)
+robot.show_crypto_ticker("BTC", 5.2)
+
+# Compound routines
+robot.morning_routine()
+robot.welcome_back()
+robot.cron_tick_done("morning brief")
+robot.error_flash("sync failed")
+robot.quinn_comms()
+
+# Custom choreography
+robot.choreography([
+    {"action": "good_morning"},
+    {"ambient": "energy_meter", "soi_percent": 87},
+    {"ambient": "weather", "condition": "sun"},
+    {"motion": "wave"},
+], inter_step_delay=0.3)
 ```
 
-## CLI Commands
-
-Run from the SDK directory:
+## How to invoke (HTTP)
 
 ```bash
-cd /home/cechinel/.openclaw/workspace/eilik-sdk
-.venv/bin/python -m eilik connect
-.venv/bin/python -m eilik wave
-.venv/bin/python -m eilik nod
-.venv/bin/python -m eilik shake_head
-.venv/bin/python -m eilik look_left
-.venv/bin/python -m eilik look_right
-.venv/bin/python -m eilik left_arm_up
-.venv/bin/python -m eilik left_arm_down
-.venv/bin/python -m eilik right_arm_up
-.venv/bin/python -m eilik right_arm_down
-.venv/bin/python -m eilik reset_pose
-.venv/bin/python -m eilik move_motor --id 1 --position 1500
-.venv/bin/python -m eilik read_servo_angles
-.venv/bin/python -m eilik display_image --image face.png [--invert] [--threshold N]
-.venv/bin/python -m eilik write_display --image face.bin
-.venv/bin/python -m eilik read_display --output face.bin
-.venv/bin/python -m eilik serve --port /dev/ttyACM0 --port-http 8766
+curl -X POST localhost:8765/action -d '{"name": "hi_jeff"}' -H 'Content-Type: application/json'
+curl -X POST localhost:8765/ambient/clock -d '{"hour": 23, "minute": 25}' -H 'Content-Type: application/json'
+curl -X POST localhost:8765/event/cron_done -d '{"name": "morning"}' -H 'Content-Type: application/json'
+curl -X POST localhost:8765/morning -d '{}' -H 'Content-Type: application/json'
 ```
 
-Use the SDK's own virtualenv: `/home/cechinel/.openclaw/workspace/eilik-sdk/.venv/bin/python`. The system `python3` will not have the SDK on `sys.path` and `Pillow` will not be installed there.
-
-## FastAPI Service Mode
+## How to invoke (CLI)
 
 ```bash
-.venv/bin/python -m eilik serve --port /dev/ttyACM0 --port-http 8766
+.venv/bin/python -m eilik.cli action --name heart_eyes
+.venv/bin/python -m eilik.cli ambient --ambient clock --text 23:25
+.venv/bin/python -m eilik.cli list_actions
+.venv/bin/python -m eilik.cli cron_done --name "morning brief"
 ```
-
-Endpoints:
-
-```text
-GET  /health
-GET  /status
-POST /wave
-POST /nod
-POST /look_left
-POST /look_right
-POST /reset
-POST /left_arm_up
-POST /right_arm_up
-GET  /servo/angles
-POST /display/image     {"png_b64": "...", "invert": false, "threshold": 128}
-POST /display/raw       {"framebuffer_hex": "00ff..."}    (2048 hex chars)
-POST /display/text      {"text": "Hi!", "font_size": 16, "invert": true}
-```
-
-### Quick display recipes from a shell or chat
-
-Show text on Eilik's face:
-
-```bash
-curl -s -X POST http://127.0.0.1:8766/display/text \
-  -H 'Content-Type: application/json' \
-  -d '{"text": "Hi Nova!", "font_size": 16}'
-```
-
-Show a PNG (base64):
-
-```bash
-B64=$(base64 -w0 face.png)
-curl -s -X POST http://127.0.0.1:8766/display/image \
-  -H 'Content-Type: application/json' \
-  -d "{\"png_b64\": \"$B64\"}"
-```
-
-## Gesture + Display Mapping
-
-- Greeting, hello, playful acknowledgement: `wave` or `display/text "Hi Jeff!"`
-- Agreement, yes, completion: `nod` or `display/text "OK"`
-- No, disagreement, "not that": `shake_head`
-- Attention shift or curiosity: `look_left` or `look_right`
-- Emotional reaction / surprise: `display/text "!"` or `display/text "What?!"`
-- End state / calm standby: `reset_pose`
-- Long or important text reply: send full text in chat, optionally `display/text` with the first ≤12 chars
-
-Pick one beat per message — either a gesture OR a display, not both, unless Jeff asks for both.
 
 ## Display Format Reference
 
-Eilik has a 128×64 1bpp monochrome SSD1306 page-mode display. That's 8 pages × 128 columns, and within each byte bit 0 is the top row of the page, bit 7 the bottom row. `read_display` returns a raw 1024-byte framebuffer; `write_display` accepts the same.
+Eilik has a 128×64 1bpp monochrome SSD1306 page-mode display. That's 8 pages ×
+128 columns, bit 0 = top row, bit 7 = bottom. `read_display` returns the raw
+1024-byte framebuffer; `write_display` accepts the same.
 
-Display ACK: `aa aa aa 05 00 a4 01 55` (status byte = 0x01 = success). Status byte lives at `frame[6]` (not `body[1]`).
+Display ACK: `aa aa aa 05 00 a4 01 55` (status byte = 0x01 = success). Status
+byte lives at `frame[6]` (not `body[1]`).
 
 ### CRITICAL: user-display mode lock
 
-The firmware's idle animation overwrites any custom `cmd=0xA4` display write within ~50ms. To make a custom face stick, the SDK automatically sends `cmd=0xA6` with running_number=100 BEFORE every `write_display()`. This puts the firmware in "user-display mode". After `auto_idle` pushes the firmware idle face, the SDK sends `cmd=0xA6` with running_number=0 to release the lock and let the idle animation resume.
+The firmware's idle animation overwrites any custom `cmd=0xA4` display write
+within ~50ms. To make a custom face stick, the SDK automatically sends
+`cmd=0xA6` with running_number=100 BEFORE every `write_display()`. After
+`auto_idle` pushes the firmware idle face, the SDK sends `cmd=0xA6` with
+running_number=0 to release the lock.
 
-If you call `write_display()` directly (bypassing `display_image()`), you must do this yourself or the custom face will be instantly overwritten. The SDK's wrapper handles it.
+If you call `write_display()` directly (bypassing `display_image()`), you
+must do this yourself or the custom face will be instantly overwritten. The
+SDK's wrapper handles it.
 
 ### CRITICAL: 180° display rotation
 
-Eilik's OLED panel (or firmware) renders the framebuffer rotated 180° from what the SDK reads back. So when you build a framebuffer from a PNG and send it raw, the image appears upside-down on the physical screen.
+Eilik's OLED panel (or firmware) renders the framebuffer rotated 180° from
+what the SDK reads back. So when you build a framebuffer from a PNG and send
+it raw, the image appears upside-down on the physical screen.
 
-To fix, the SDK's `display_image()` and `_display_image_raw()` apply a 180° rotation to the framebuffer before sending. This rotation cancels out the firmware's rotation, so the PNG's top-left appears at the screen's top-left.
+To fix, the SDK's `display_image()` and `_display_image_raw()` apply a 180°
+rotation to the framebuffer before sending. This rotation cancels out the
+firmware's rotation, so the PNG's top-left appears at the screen's top-left.
 
-If you call `write_display()` directly with your own framebuffer (not built from a PNG), you must apply `rotate_180()` from `tools/png_to_framebuffer.py` yourself or the image will appear upside-down.
+If you call `write_display()` directly (bypassing `display_image()`), you
+must apply `rotate_180()` from `tools/png_to_framebuffer.py` yourself.
 
-`display_image()` accepts `auto_rotate=False` to disable the rotation if you've pre-rotated the PNG yourself.
+`display_image()` accepts `auto_rotate=False` to disable the rotation.
 
-## Troubleshooting Quick Reference
+## Personal-use acknowledgment
 
-If `connect` doesn't see the robot:
-1. Check `ls -l /dev/ttyACM0` from WSL.
-2. If missing, ask Jeff to reattach USB (`usbipd attach --wsl --busid <id>` from Windows PowerShell).
-3. If present but unreadable, `sudo usermod -aG dialout "$USER"` + `wsl --shutdown`.
+This is a personal-use skill for Jeff Cechinel + Nova. There is no
+relationship with Energize Lab, Energize Robotics, or the Eilik OEM. No
+official support, no warranty. The author assumes the user knows what they
+are doing.
 
-If a display call fails, check Pillow is installed in the SDK venv (see Preflight).
+## Where things live
 
-If a gesture call returns no reply but doesn't error: usually means the robot was reset. Power-cycle Eilik (long-press the button on its back) and try `reset_pose` then `wave` again.
-
-## Safety And Etiquette
-
-- Do not run endless monitor or service sessions unless Jeff asks.
-- Do not leave long-running FastAPI processes open at final response time unless Jeff has explicitly asked for the service to stay up. Stop it.
-- Do not assume Eilik can speak audio. Text on the face is the canonical "speak through Eilik" channel.
-- Do not commit SDK changes from this skill unless Jeff asks for development work. The skill is a usage guide; the SDK lives in `strognoff/eilik-sdk`.
-- Never replay the 293 KB firmware update stream or fuzz bulk commands — firmware corruption risk.
+- SDK: `/home/cechinel/.openclaw/workspace/eilik-sdk/` (private repo)
+- Skill: this folder
+- Skill proposal id: `eilik-body-20260812-efa8919a22`
+- Brainstorm backlog: `STAGE2_IDEAS.md`
