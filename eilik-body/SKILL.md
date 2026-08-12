@@ -242,3 +242,23 @@ are doing.
 - Skill: this folder
 - Skill proposal id: `eilik-body-20260812-efa8919a22`
 - Brainstorm backlog: `STAGE2_IDEAS.md`
+
+## Cron wiring (live as of 2026-08-12 23:35 BST)
+
+The FastAPI service runs persistently at `http://127.0.0.1:8765`,
+auto-restarted by a 5-min watchdog cron. Cron wrappers fire event
+bridges automatically:
+
+| Cron | Schedule | Eilik reaction |
+| --- | --- | --- |
+| Calendar calcurse sync | 05:50, 18:50 daily | `cron_done("calcurse-sync")` |
+| Garmin daily sync | 06:15 daily | `cron_done("garmin-sync")` |
+| Morning news brief | 07:18 daily | `cron_done("morning-brief")` |
+| Nova Medium→LinkedIn | 09:35 daily | `cron_done("medium-linkedin")` |
+| Nova system healthcheck | every 6h22m | `cron_done("nova-healthcheck")` |
+| Nova daily day summary | 19:21 daily | `cron_done("day-summary")` |
+| Eilik service watchdog | every 5 min | (silent) |
+
+Failures (non-zero exit codes) trigger `error_flash` with the cron name
+and exit code in the message. The wrapper is best-effort — Eilik being
+offline never breaks the cron itself.
