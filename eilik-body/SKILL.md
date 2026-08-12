@@ -46,6 +46,8 @@ For brief yes/no replies, "done", "thanks", "will do", or a quick "got it", Nova
 - display a short acknowledgment on Eilik's face (`"OK"`, `"👍"`, `"!"`), AND/OR
 - perform one gesture (`nod` for yes/agreement, `wave` for thanks/hello).
 
+**If the user specifically asks for a gesture, do ONLY the gesture. Do not also push a face message.** The user asked for one thing; respect that. The skill's default face-on-greeting only fires for greetings, not for explicit gesture requests.
+
 **Do NOT auto-reset pose after a gesture.** The user asked for that gesture; let Eilik stay in that pose. The firmware's idle animation is what should be running, and that's governed by the face image, not the servos. Resetting the servos on every gesture made Eilik look mechanical and "stuck". Trust the firmware.
 
 Don't do both display + gesture for the same single message — pick one beat. If the gesture is the main point Jeff asked for, use the gesture and skip the display.
@@ -215,6 +217,12 @@ Pick one beat per message — either a gesture OR a display, not both, unless Je
 Eilik has a 128×64 1bpp monochrome SSD1306 page-mode display. That's 8 pages × 128 columns, and within each byte bit 0 is the top row of the page, bit 7 the bottom row. `read_display` returns a raw 1024-byte framebuffer; `write_display` accepts the same.
 
 Display ACK: `aa aa aa 05 00 a4 01 55` (status byte = 0x01 = success). Status byte lives at `frame[6]` (not `body[1]`).
+
+### CRITICAL: user-display mode lock
+
+The firmware's idle animation overwrites any custom `cmd=0xA4` display write within ~50ms. To make a custom face stick, the SDK automatically sends `cmd=0xA6` with running_number=100 BEFORE every `write_display()`. This puts the firmware in "user-display mode". After `auto_idle` pushes the firmware idle face, the SDK sends `cmd=0xA6` with running_number=0 to release the lock and let the idle animation resume.
+
+If you call `write_display()` directly (bypassing `display_image()`), you must do this yourself or the custom face will be instantly overwritten. The SDK's wrapper handles it.
 
 ## Troubleshooting Quick Reference
 
