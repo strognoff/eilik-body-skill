@@ -37,12 +37,16 @@ Common messages to send on Eilik's face:
 
 These should be **single short strings**, rendered at default `font_size: 16`, white background, black text. Do not send long messages to the screen — keep them ≤12 chars or the font gets scaled down.
 
+The SDK has `display_image(png_path, hold_seconds=2.0, auto_idle=True)` as the default. After the hold, the SDK pushes the firmware's captured idle face back so the firmware's idle animation loop resumes naturally. Do not clear the display to a blank framebuffer — that puts Eilik in a state the firmware never visits and looks "stuck".
+
 ### Acknowledgments and small reactions
 
 For brief yes/no replies, "done", "thanks", "will do", or a quick "got it", Nova may:
 - send the text reply in chat (always), AND
 - display a short acknowledgment on Eilik's face (`"OK"`, `"👍"`, `"!"`), AND/OR
-- perform one gesture (`nod` for yes/agreement, `wave` for thanks/hello, `reset` to settle down).
+- perform one gesture (`nod` for yes/agreement, `wave` for thanks/hello).
+
+**Do NOT auto-reset pose after a gesture.** The user asked for that gesture; let Eilik stay in that pose. The firmware's idle animation is what should be running, and that's governed by the face image, not the servos. Resetting the servos on every gesture made Eilik look mechanical and "stuck". Trust the firmware.
 
 Don't do both display + gesture for the same single message — pick one beat. If the gesture is the main point Jeff asked for, use the gesture and skip the display.
 
