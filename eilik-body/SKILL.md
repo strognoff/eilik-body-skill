@@ -224,6 +224,16 @@ The firmware's idle animation overwrites any custom `cmd=0xA4` display write wit
 
 If you call `write_display()` directly (bypassing `display_image()`), you must do this yourself or the custom face will be instantly overwritten. The SDK's wrapper handles it.
 
+### CRITICAL: 180° display rotation
+
+Eilik's OLED panel (or firmware) renders the framebuffer rotated 180° from what the SDK reads back. So when you build a framebuffer from a PNG and send it raw, the image appears upside-down on the physical screen.
+
+To fix, the SDK's `display_image()` and `_display_image_raw()` apply a 180° rotation to the framebuffer before sending. This rotation cancels out the firmware's rotation, so the PNG's top-left appears at the screen's top-left.
+
+If you call `write_display()` directly with your own framebuffer (not built from a PNG), you must apply `rotate_180()` from `tools/png_to_framebuffer.py` yourself or the image will appear upside-down.
+
+`display_image()` accepts `auto_rotate=False` to disable the rotation if you've pre-rotated the PNG yourself.
+
 ## Troubleshooting Quick Reference
 
 If `connect` doesn't see the robot:
