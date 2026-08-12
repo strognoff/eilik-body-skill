@@ -1,9 +1,14 @@
 # Eilik Body Skill
 
-Codex/OpenClaw skill for using local Eilik robot as Nova's expressive body.
-This has nothing to do with Energize Lab. There is no official support.
+OpenClaw skill for using Jeff's local Eilik robot as Nova's expressive body. Wraps the
+local Eilik SDK and adds direct-chat defaults so Nova can wave, send a small message to
+Eilik's face, or react physically when it's natural.
 
-This repository is documentation plus the installable skill folder:
+This is a personal-use skill that talks to a local reverse-engineered SDK. It has
+nothing to do with Energize Lab. There is no official support, no affiliation, and no
+guarantee the protocol stays stable across firmware updates.
+
+This repository is the installable skill folder:
 
 ```text
 eilik-body/
@@ -13,7 +18,15 @@ eilik-body/
 
 ## What It Does
 
-When active, the skill teaches Nova to use the local Eilik SDK for gentle physical gestures when Jeff clearly asks for robot body language.
+When active, the skill teaches Nova to use the local Eilik SDK for:
+
+- **Gestures** on direct ask: `wave`, `nod`, `shake_head`, `look_left`, `look_right`,
+  `left_arm_*`, `right_arm_*`, `reset_pose`, `move_motor`.
+- **Face messages** on direct ask: render short text on Eilik's SSD1306 screen, or push
+  any PNG as the new face.
+- **Default beats** in direct chat with Jeff (sparingly): a wave on greeting, "OK" on
+  the face after a confirmation, a `nod` on agreement, etc. Nova decides based on the
+  moment; never on every message, never in group chats, never during heartbeats.
 
 Examples that should trigger it:
 
@@ -21,14 +34,11 @@ Examples that should trigger it:
 Nova, wave with Eilik
 Use your body to say yes
 React with Eilik
-Check if your robot body is awake
+Say hi through Eilik
+Show "Hello" on Eilik
 ```
 
-Current communication split:
-
-- Telegram: actual text and reasoning.
-- Eilik: body language such as wave, nod, look left/right, reset.
-- SDK logs: diagnostics in `logs/eilik.log`.
+Text replies to Jeff still go to Telegram — Eilik is expressive feedback, not a substitute.
 
 ## Dependency
 
@@ -44,41 +54,58 @@ Known-good SDK repo:
 https://github.com/strognoff/eilik-sdk
 ```
 
-Known-good SDK commit:
-
-```text
-84dde26
-```
+The SDK is up-to-date as of `main` commit `7e80015` (display_image + FastAPI endpoints).
+For continuous use, keep the SDK current — pull the latest `main` before relying on
+new commands.
 
 ## Install
 
-Copy or install the `eilik-body/` folder into the active OpenClaw/Codex skills directory used by the agent.
+The skill folder (`eilik-body/`) can be installed into the active OpenClaw skills
+directory in two ways:
 
-The Skill Workshop proposal for this skill is:
+1. **Via Skill Workshop** (preferred once approval routes are available):
+   the pending proposal `eilik-body-20260812-efa8919a22` is the canonical reviewed
+   artifact. Apply with `apply proposal eilik-body-20260812-efa8919a22` from a session
+   that has the approval route.
+2. **Direct install** (fallback):
+   ```bash
+   cp -r eilik-body ~/.openclaw/skills/
+   ```
 
-```text
-eilik-body-20260812-efa8919a22
-```
-
-At creation time, applying the proposal from Telegram failed because the Skill Workshop approval route was unavailable. The proposal remains the canonical reviewed artifact until it can be approved in an environment with an approval route.
+At creation time, the Skill Workshop approval route was unavailable from this session,
+so the proposal stayed pending. The textual content in `SKILL.md` is the source of
+truth for the skill.
 
 ## Usage
 
-Once active, ask Nova for a physical Eilik action:
+Once active, Nova will gently use Eilik's body when talking to you in direct chat:
 
 ```text
+# Direct ask
 Wave at me with Eilik
 Use Eilik to nod yes
 Reset your Eilik body
+Push this image to Eilik
+Show "Hello" on Eilik's face
+
+# Routine direct-chat moments (Nova decides)
+Hi Jeff!                      ← Eilik face says "Hi Jeff!" (small greeting)
+Yes, done                     ← Eilik nods and shows "OK"
+Bye for now                   ← Eilik face says "Bye!"
 ```
 
-Nova should check `/dev/ttyACM0`, run the matching SDK command from the SDK directory, and then report the result in chat.
+Nova checks `/dev/ttyACM0`, runs the matching SDK command from the SDK directory
+(using the `.venv/bin/python` interpreter), and reports the result in chat.
 
-## Display / Screen Status
+## Reference Files
 
-The captured firmware-update file does include a display-relevant clue: during the update, the official app sends many large `cmd=03` binary/resource frames and Eilik displays update/progress state on its own screen.
+- `eilik-body/SKILL.md` — full skill specification, ground rules, default direct-chat
+  patterns, troubleshooting reference.
+- `eilik-body/references/display-capture-notes.md` — display protocol details and
+  capture workflow (kept for future protocol work).
 
-That is not the same as an arbitrary text command. No simple "print this text on the face screen" command has been identified yet.
+## Communication Split
 
-See `eilik-body/references/display-capture-notes.md`.
-
+- **Telegram**: actual text and reasoning — every reply.
+- **Eilik**: body language + small face text (≤12 chars usually).
+- **SDK logs**: diagnostics in `logs/eilik.log`.
