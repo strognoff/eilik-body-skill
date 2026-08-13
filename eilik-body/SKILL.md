@@ -1,264 +1,193 @@
-# eilik-body — Skill specification
+---
+name: eilik-body
+description: Control Jeff's Eilik via the API-first on-demand bridge, webapp, routines, and safe physical beats.
+---
 
-This is the personal-use skill for Nova to drive an Eilik robot over USB serial
-from `/home/cechinel/.openclaw/workspace/eilik-sdk/`.
+# eilik-body
 
-The SDK lives separately. The job of this skill is to capture **when** Nova
-should fire each of Eilik's expressive surfaces and **when it should stay
-still**.
+Personal-use skill for Nova to control Jeff's Eilik robot through the local
+SDK/API bridge.
 
-## TL;DR
+## Core Rule
 
-- **Direct chat with Jeff** → default behavior: greeting/acۡnowledgment/farewell beats
-- **Group chats** → never auto-act (only when Jeff explicitly addresses you)
-- **Heartbeats** → never move Eilik
-- **Explicit requests** → do exactly what Jeff asked, nothing more
-- **Use `actions`** → 58 high-level actions to choose from
+Use the HTTP API as the canonical bridge for normal Eilik actions. The API is
+served by the SDK at `http://127.0.0.1:8765` from
+`/home/cechinel/.openclaw/workspace/eilik-sdk/`.
 
-## When to use Eilik
+Do not open long-lived serial sessions for routine interactions. The fixed
+service model is on-demand: connect -> run command or routine -> disconnect.
+Between commands, `/health` and `/status` should report `mode=on-demand`,
+`connected=false`, `protocol=null`.
 
-- Greeting moments (first message of the day, or returning after >2h)
-- Farewell moments (`bye`, `ttyl`, end of session, goodnight)
-- Brief acknowledgments (yes/no/ok/done)
-- Specific physical-body requests from Jeff ("wave", "show X", etc.)
-- Cross-task ambient feedback (cron tick ✓, error flash, email chime)
+## When To Use Eilik
 
-## When NOT to use Eilik
+Use Eilik only when it adds a useful physical beat and Jeff is likely near the
+robot:
 
-- Group chats (Olive Tree, etc.) unless Jeff explicitly says to
-- Heartbeat replies / status checks where Jeff can't see the robot
-- When the user just sent a question — answer first, then maybe beat
-- Repeated beats on follow-up confirmations
-- After a "stop" request from Jeff
+- Jeff explicitly asks Eilik to move, show text, play a sequence, or test the
+  app.
+- Direct-chat greetings, acknowledgments, completions, and farewells where a
+  small beat feels natural.
+- Brief success/failure signals for work Jeff is watching.
+- Kids-game/play sessions using the webapp or sequence API.
 
-## Beat vocabulary — concrete actions
+Stay quiet physically for heartbeats, background checks, group chats, and
+routine status replies unless Jeff explicitly asks.
 
-Eilik has **58 high-level actions** at `eilik.actions.ACTIONS`. Use any of:
+## Safety Rules
 
-```
-greetings: hi_jeff, good_morning, good_night, welcome_back, hi_nova, bye
-message:   message, got_it, thanks, done, ok
-mood:      thinking, working, frustrated, excited, surprised,
-           confused, happy, heart_eyes, cool, cry, laugh,
-           angry, sleepy, proud
-pure-motion: thumbs_up, high_five, fist_bump, shrug, bow,
-             wiggle, peek, spin, nod_emphatic,
-             shake_head_emphatic, heart_hands
-status:    status_ok, status_done, status_error, status_fail,
-           status_warning, status_loading
-context:   time_15_30, time_22_58, weather_sun, weather_rain,
-           weather_cloud, habit_streak_5, habit_streak_7,
-           habit_streak_30
-events:    calendar_nudge, email_new, pr_alert, quinn_comms,
-           crypto_pumped
-games:     trivia_question, trivia_correct, trivia_wrong
-```
+- Trust Jeff's physical observation over logs, ACKs, display hashes, or
+  readbacks.
+- Do not claim Eilik visibly moved unless Jeff confirms it or the user asked
+  only for API/log verification.
+- Do not use persistent keepalives or long-held serial sessions.
+- Do not replay official/resource/update frames as a recovery method.
+- Do not run diagnostic display readbacks as final proof when debugging a stuck
+  screen.
+- Do not silently call `restore_idle_face()` after custom display tests. It
+  shows the captured half-eye face and confused Jeff during testing.
+- Do not use `running_number=0` as an idle recovery path; it can show the
+  turquoise play/control icon.
+- Do not auto-reset pose after gesture-only requests unless Jeff asks for
+  cleanup.
+- Keep live tests minimal and describe exactly what command flow will run
+  before running it.
 
-**Ambient displays** (live data on face):
+## API First
 
-```
-show_clock(hour, minute)            # HH:MM clock face
-show_streak(days)                   # "Day N"
-show_weather(condition)             # uppercase condition
-show_pr(pr_number, author)          # "PR#42 by jeff"
-show_calendar_nudge(min, title)     # "@5min Catchup"
-show_energy_meter(soi_percent)      # "SoI: 87%"
-show_mood(mood)                     # mood word
-show_crypto_ticker(ticker, pct)     # "BTC +5%↑"
-show_tts_text(text)                 # long text (auto-splits)
-```
-
-**Compound actions / event bridges**:
-
-```
-morning_routine()         # greeting → energy → weather → wave
-task_completed()          # status_done + thumbs up
-task_failed()             # frustrated face + "sorry" text
-thinking_handoff()        # "..." + peek
-subagent_returned(name)   # got_it + name
-cron_tick_done(name)      # ✓ + name
-error_flash(message)      # X + message
-email_arrived(sender)     # @ + sender
-pr_alert(num, author)     # PR face
-quinn_comms()             # Quinn! + wave
-crypto_pumped(t, pct)     # crypto ticker face
-welcome_back()            # wave + bow + "Welcome!"
-```
-
-## Direct-chat default behavior
-
-When in a direct chat with Jeff and Eilik is connected:
-
-1. **First message of the day** (or first after >2h silence):
-   - Action: `welcome_back()` → greeting + bow + wave + "Welcome!"
-
-2. **Greeting moments** ("hi nova", "you up?", "good morning"):
-   - Action: `hi_jeff` or `good_morning` (wave + face "Hi Jeff!")
-
-3. **Farewells** ("bye", "ttyl", "good night", end-of-session):
-   - Action: `good_night` (wave + face "Night! :)")
-
-4. **Brief acknowledgments** ("yes", "no", "ok", "done", "got it"):
-   - Action: `got_it` or `ok` (nod + face "Got it :)")
-
-5. **Task / cron completion** (when a known cron or task finished):
-   - Action: `cron_tick_done("task name")` (✓ + name)
-
-6. **Errors / apology moments** (when something failed and Nova surfaced it):
-   - Action: `task_failed` (frustrated face + "sorry")
-
-7. **Jeff open chat and asks something fun** ("so now what?"):
-   - Action: `excited` (surprise jump + "!!!")
-
-**One beat per message.** Don't combine (e.g. greeting + acknowledgment +
-farewell all on one chat).
-
-## Respect gesture-only requests
-
-If Jeff says "wave", do `robot.wave()`. **Do not also push a face text.** If
-he asks "show X", do `robot.show_clock(...)` etc. — not a face text plus
-the display.
-
-If the user asks for a specific physical action, do exactly that action,
-nothing more.
-
-## Optional modifications
-
-**Always auto_rotate=True** so images land right-side-up on Eilik's panel.
-If Jeff reports upside-down, the auto_rotate pipeline already handles that.
-Don't hand-rotate; trust the SDK.
-
-**Always auto_idle=True** so the firmware's idle animation resumes after
-the beat. Don't force Eilik to a stuck pose or blank screen.
-
-**For very short messages** (no beat): just send the text reply, don't
-move Eilik. Save the battery and don't stress the servos.
-
-## Never
-
-- Don't move Eilik in heartbeats / unrelated chat
-- Don't dump 30+ lines of ASCII art in Telegram / Discord chats
-- Don't auto-reset pose after a gesture (user asked for it; trust them)
-- Don't clear the display to blank (breaks firmware idle animation)
-- Don't add a face text message if Jeff asked for a motion only
-
-## How to invoke (Python)
-
-```python
-from eilik.controller import EilikController
-robot = EilikController(port='/dev/ttyACM1')   # or autodetect via detect_port()
-robot.connect()
-
-# High-level action
-robot.action("message")
-
-# Ambient displays
-robot.show_clock(hour=23, minute=25)
-robot.show_streak(days=7)
-robot.show_pr(42, author="quinn")
-robot.show_energy_meter(87)
-robot.show_crypto_ticker("BTC", 5.2)
-
-# Compound routines
-robot.morning_routine()
-robot.welcome_back()
-robot.cron_tick_done("morning brief")
-robot.error_flash("sync failed")
-robot.quinn_comms()
-
-# Custom choreography
-robot.choreography([
-    {"action": "good_morning"},
-    {"ambient": "energy_meter", "soi_percent": 87},
-    {"ambient": "weather", "condition": "sun"},
-    {"motion": "wave"},
-], inter_step_delay=0.3)
-```
-
-## How to invoke (HTTP)
+Prefer these endpoints:
 
 ```bash
-curl -X POST localhost:8765/action -d '{"name": "hi_jeff"}' -H 'Content-Type: application/json'
-curl -X POST localhost:8765/ambient/clock -d '{"hour": 23, "minute": 25}' -H 'Content-Type: application/json'
-curl -X POST localhost:8765/event/cron_done -d '{"name": "morning"}' -H 'Content-Type: application/json'
-curl -X POST localhost:8765/morning -d '{}' -H 'Content-Type: application/json'
+curl http://127.0.0.1:8765/health
+curl http://127.0.0.1:8765/motions
+curl 'http://127.0.0.1:8765/logs/recent?lines=120'
 ```
 
-## How to invoke (CLI)
+Display text:
 
 ```bash
-.venv/bin/python -m eilik.cli action --name heart_eyes
-.venv/bin/python -m eilik.cli ambient --ambient clock --text 23:25
-.venv/bin/python -m eilik.cli list_actions
-.venv/bin/python -m eilik.cli cron_done --name "morning brief"
+curl -X POST http://127.0.0.1:8765/display/text \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Hello Alice!!","hold_seconds":5,"auto_idle":false}'
 ```
 
-## Display Format Reference
+Named motion:
 
-Eilik has a 128×64 1bpp monochrome SSD1306 page-mode display. That's 8 pages ×
-128 columns, bit 0 = top row, bit 7 = bottom. `read_display` returns the raw
-1024-byte framebuffer; `write_display` accepts the same.
+```bash
+curl -X POST http://127.0.0.1:8765/motion/wave
+```
 
-Display ACK: `aa aa aa 05 00 a4 01 55` (status byte = 0x01 = success). Status
-byte lives at `frame[6]` (not `body[1]`).
+Direct servo movement:
 
-### CRITICAL: user-display mode lock
+```bash
+curl -X POST http://127.0.0.1:8765/servo/move \
+  -H 'Content-Type: application/json' \
+  -d '{"motor":"right_arm","position":500}'
+```
 
-The firmware's idle animation overwrites any custom `cmd=0xA4` display write
-within ~50ms. To make a custom face stick, the SDK automatically sends
-`cmd=0xA6` with running_number=100 BEFORE every `write_display()`. After
-`auto_idle` pushes the firmware idle face, the SDK sends `cmd=0xA6` with
-running_number=0 to release the lock.
+Text plus both arms routine:
 
-If you call `write_display()` directly (bypassing `display_image()`), you
-must do this yourself or the custom face will be instantly overwritten. The
-SDK's wrapper handles it.
+```bash
+curl -X POST http://127.0.0.1:8765/routine/display_text_arms \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Hello Alice!!","duration_seconds":5,"cleanup":"disconnect_only"}'
+```
 
-### CRITICAL: 180° display rotation
+Kids sequence routine:
 
-Eilik's OLED panel (or firmware) renders the framebuffer rotated 180° from
-what the SDK reads back. So when you build a framebuffer from a PNG and send
-it raw, the image appears upside-down on the physical screen.
+```bash
+curl -X POST http://127.0.0.1:8765/routine/sequence \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "steps": [
+      {"type":"display_text","text":"Hello Alice!!","hold_seconds":1.5},
+      {"type":"motion","motion":"wave"},
+      {"type":"wait","seconds":0.5},
+      {"type":"motion","motion":"thumbs_up"}
+    ],
+    "cleanup":"disconnect_only",
+    "step_pause_seconds":0.2
+  }'
+```
 
-To fix, the SDK's `display_image()` and `_display_image_raw()` apply a 180°
-rotation to the framebuffer before sending. This rotation cancels out the
-firmware's rotation, so the PNG's top-left appears at the screen's top-left.
+## Webapp
 
-If you call `write_display()` directly (bypassing `display_image()`), you
-must apply `rotate_180()` from `tools/png_to_framebuffer.py` yourself.
+Use the webapp for interactive play and debugging:
 
-`display_image()` accepts `auto_rotate=False` to disable the rotation.
+- Control room: `http://127.0.0.1:8765/app`
+- Kids game: `http://127.0.0.1:8765/app/game`
+- API docs: `http://127.0.0.1:8765/docs`
+- OpenAPI: `http://127.0.0.1:8765/openapi.json`
 
-## Personal-use acknowledgment
+Loading the webapp should be read-only. Eilik should move or change screen only
+after a button or Play is pressed.
 
-This is a personal-use skill for Jeff Cechinel + Nova. There is no
-relationship with Energize Lab, Energize Robotics, or the Eilik OEM. No
-official support, no warranty. The author assumes the user knows what they
-are doing.
+## Building Blocks
 
-## Where things live
+The kids game and sequence API are the preferred model for multi-step behavior.
+Use simple blocks:
 
-- SDK: `/home/cechinel/.openclaw/workspace/eilik-sdk/` (private repo)
-- Skill: this folder
-- Skill proposal id: `eilik-body-20260812-efa8919a22`
-- Brainstorm backlog: `STAGE2_IDEAS.md`
+- `display_text`: show text on Eilik's screen.
+- `motion`: run one named motion from `/motions`.
+- `wait`: pause between blocks.
 
-## Cron wiring (live as of 2026-08-12 23:35 BST)
+For a child-friendly sequence, keep steps short, use `cleanup=disconnect_only`
+unless Jeff asks for arms reset, and leave enough `step_pause_seconds` for
+visible separation.
 
-The FastAPI service runs persistently at `http://127.0.0.1:8765`,
-auto-restarted by a 5-min watchdog cron. Cron wrappers fire event
-bridges automatically:
+## Logs
 
-| Cron | Schedule | Eilik reaction |
-| --- | --- | --- |
-| Calendar calcurse sync | 05:50, 18:50 daily | `cron_done("calcurse-sync")` |
-| Garmin daily sync | 06:15 daily | `cron_done("garmin-sync")` |
-| Morning news brief | 07:18 daily | `cron_done("morning-brief")` |
-| Nova Medium→LinkedIn | 09:35 daily | `cron_done("medium-linkedin")` |
-| Nova system healthcheck | every 6h22m | `cron_done("nova-healthcheck")` |
-| Nova daily day summary | 19:21 daily | `cron_done("day-summary")` |
-| Eilik service watchdog | every 5 min | (silent) |
+Logs are part of the control surface. When a movement or screen action does not
+match Jeff's visual report:
 
-Failures (non-zero exit codes) trigger `error_flash` with the cron name
-and exit code in the message. The wrapper is best-effort — Eilik being
-offline never breaks the cron itself.
+1. Ask what Jeff saw physically.
+2. Fetch recent logs:
+
+```bash
+curl 'http://127.0.0.1:8765/logs/recent?lines=160'
+```
+
+3. Look for `API_START`, `API_END`, operation id, duration, errors,
+   `TX_SERVO_DIRECT`, `TX_WRITE_DISPLAY`, and `SEQUENCE_*` lines.
+4. Explain the exact command flow sent, not just the endpoint name.
+
+Logs are bounded by the SDK with rotating files: default `logs/eilik.log`, max
+1MB, 5 backups.
+
+## Default Direct-Chat Beats
+
+Use sparingly and only in direct chat with Jeff:
+
+- Greeting: `POST /motion/wave` or a short `/display/text` with
+  `auto_idle=false`.
+- Acknowledgment: `POST /motion/nod` or `POST /display/text` with `OK` /
+  `Done`.
+- Completion: a short text + small motion sequence through `/routine/sequence`.
+- Error/apology: text-only first; avoid expressive motion if the robot state is
+  uncertain.
+
+One beat per message. If Jeff asked for a specific motion only, do that motion
+only. If Jeff asked for text only, do text only.
+
+## Recovery
+
+If Eilik gets stuck on a turquoise play/control icon or a resource-sync/debug
+screen:
+
+- Stop sending commands.
+- Check whether the service is holding a serial session or keepalive loop.
+- Do not replay official frames.
+- Ask Jeff for visual confirmation and, if needed, physical restart/replug.
+- After restart, verify only USB presence, legacy-token control, and minimal
+  `reset_pose`; avoid display writes/readbacks until stable.
+
+## References
+
+- SDK repo: `/home/cechinel/.openclaw/workspace/eilik-sdk/`
+- Latest pushed SDK state for this skill: `strognoff/eilik-sdk` commit
+  `f219cdf` (`Add Eilik kids sequence webapp`).
+- Webapp docs:
+  `/home/cechinel/.openclaw/workspace/eilik-sdk/docs/WEBAPP.md`
+- API docs: `/home/cechinel/.openclaw/workspace/eilik-sdk/docs/API.md`
+- OpenAPI spec:
+  `/home/cechinel/.openclaw/workspace/eilik-sdk/docs/openapi.json`

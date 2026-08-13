@@ -1,8 +1,8 @@
 # Eilik Body Skill
 
-OpenClaw skill for using Jeff's local Eilik robot as Nova's expressive body. Wraps the
-local Eilik SDK and adds direct-chat defaults so Nova can wave, send a small message to
-Eilik's face, or react physically when it's natural.
+OpenClaw skill for using Jeff's local Eilik robot as Nova's expressive body. It uses the
+local Eilik HTTP API bridge so Nova can wave, send a small message to Eilik's face, build
+sequences, or react physically when it's natural.
 
 This is a personal-use skill that talks to a local reverse-engineered SDK. It has
 nothing to do with Energize Lab. There is no official support, no affiliation, and no
@@ -18,12 +18,14 @@ eilik-body/
 
 ## What It Does
 
-When active, the skill teaches Nova to use the local Eilik SDK for:
+When active, the skill teaches Nova to use the local Eilik API for:
 
 - **Gestures** on direct ask: `wave`, `nod`, `shake_head`, `look_left`, `look_right`,
-  `left_arm_*`, `right_arm_*`, `reset_pose`, `move_motor`.
+  `left_arm_*`, `right_arm_*`, `reset_pose`, direct servo movement.
 - **Face messages** on direct ask: render short text on Eilik's SSD1306 screen, or push
   any PNG as the new face.
+- **Building blocks** for play: message, motion, and wait blocks through
+  `/routine/sequence` and the `/app/game` webapp.
 - **Default beats** in direct chat with Jeff (sparingly): a wave on greeting, "OK" on
   the face after a confirmation, a `nod` on agreement, etc. Nova decides based on the
   moment; never on every message, never in group chats, never during heartbeats.
@@ -54,7 +56,7 @@ Known-good SDK repo:
 https://github.com/strognoff/eilik-sdk
 ```
 
-The SDK is up-to-date as of `main` commit `7e80015` (display_image + FastAPI endpoints).
+The SDK is up-to-date as of `main` commit `f219cdf` (API bridge + webapp + kids sequence builder).
 For continuous use, keep the SDK current — pull the latest `main` before relying on
 new commands.
 
@@ -64,9 +66,8 @@ The skill folder (`eilik-body/`) can be installed into the active OpenClaw skill
 directory in two ways:
 
 1. **Via Skill Workshop** (preferred once approval routes are available):
-   the pending proposal `eilik-body-20260812-efa8919a22` is the canonical reviewed
-   artifact. Apply with `apply proposal eilik-body-20260812-efa8919a22` from a session
-   that has the approval route.
+   proposal `eilik-body-api-first-update-20260813-8133d9d5a3` captures the latest
+   API-first update.
 2. **Direct install** (fallback):
    ```bash
    cp -r eilik-body ~/.openclaw/skills/
@@ -94,8 +95,9 @@ Yes, done                     ← Eilik nods and shows "OK"
 Bye for now                   ← Eilik face says "Bye!"
 ```
 
-Nova checks `/dev/ttyACM0`, runs the matching SDK command from the SDK directory
-(using the `.venv/bin/python` interpreter), and reports the result in chat.
+Nova calls the local API at `http://127.0.0.1:8765`, which handles on-demand
+connect -> command/routine -> disconnect sessions. Between commands, `/health`
+should show `mode=on-demand`, `connected=false`, `protocol=null`.
 
 ## Reference Files
 
@@ -108,4 +110,4 @@ Nova checks `/dev/ttyACM0`, runs the matching SDK command from the SDK directory
 
 - **Telegram**: actual text and reasoning — every reply.
 - **Eilik**: body language + small face text (≤12 chars usually).
-- **SDK logs**: diagnostics in `logs/eilik.log`.
+- **SDK logs**: bounded rotating diagnostics in `logs/eilik.log`.
